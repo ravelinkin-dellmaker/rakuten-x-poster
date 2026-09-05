@@ -108,6 +108,13 @@
     flex: 1;
     min-width: 0;
   }
+  .ai-comment {
+    font-size: 0.82rem;
+    line-height: 1.4;
+    margin: 0 0 6px;
+    color: var(--text);
+    font-style: italic;
+  }
   .item-name {
     font-size: 0.9rem;
     line-height: 1.4;
@@ -340,6 +347,7 @@
             ${img}
             <div class="card-body">
               <div class="badges">${badges}</div>
+              ${item.comment ? `<p class="ai-comment">💬 ${escapeHtml(item.comment)}</p>` : ""}
               <p class="item-name">${escapeHtml(item.name)}</p>
               <div class="meta">
                 <span class="price">${item.price ? item.price.toLocaleString("ja-JP") + "円" : ""}</span>

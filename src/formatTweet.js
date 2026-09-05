@@ -8,14 +8,15 @@ function truncate(text, maxLen) {
   return text.slice(0, Math.max(maxLen - 1, 0)) + "…";
 }
 
-export function formatTweet(item, genreLabel) {
+export function formatTweet(item, genreLabel, comment) {
   const price = Number(item.itemPrice).toLocaleString("ja-JP");
   const url = item.affiliateUrl || item.itemUrl;
   const genrePrefix = genreLabel ? `${genreLabel}の` : "";
   const genreHashtag = genreLabel ? ` #${genreLabel.replace(/\s/g, "")}` : "";
 
   const header = `🏆 ${genrePrefix}楽天人気ランキング\n\n`;
-  const footer = `\n\n💰 ${price}円\n${url}\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
+  const commentBlock = comment ? `\n\n${comment}` : "";
+  const footer = `${commentBlock}\n\n💰 ${price}円\n${url}\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
 
   const nameBudget = TWEET_MAX - header.length - footer.length;
   const name = truncate(item.itemName, Math.max(nameBudget, 10));

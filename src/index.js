@@ -7,6 +7,7 @@ import { fetchRanking, pickFreshItems } from "./rakuten.js";
 import { formatTweet } from "./formatTweet.js";
 import { buildPoolEntry, mergePool } from "./pool.js";
 import { detectRisers, buildSnapshot } from "./trending.js";
+import { generateComment } from "./comment.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "..", "config.json");
@@ -69,13 +70,22 @@ async function main() {
   }
 
   const dryRun = process.env.DRY_RUN === "true";
+  const geminiApiKey = process.env.GEMINI_API_KEY;
 
-  const rankingEntries = rankingPicks.map((item) =>
-    buildPoolEntry(item, formatTweet(item, config.genreLabel), "ranking")
-  );
-  const trendingEntries = trendingPicks.map((item) =>
-    buildPoolEntry(item, formatTweet(item, config.genreLabel), "trending")
-  );
+  // AIコメント生成はレート制限に配慮して1件ずつ順番に呼ぶ
+  async function buildEntry(item, source) {
+    const comment = await generateComment({ apiKey: geminiApiKey, item });
+    return buildPoolEntry(item, formatTweet(item, config.genreLabel, comment), source, comment);
+  }
+
+  const rankingEntries = [];
+  for (const item of rankingPicks) {
+    rankingEntries.push(await buildEntry(item, "ranking"));
+  }
+  const trendingEntries = [];
+  for (const item of trendingPicks) {
+    trendingEntries.push(await buildEntry(item, "trending"));
+  }
   const newEntries = [...rankingEntries, ...trendingEntries];
 
   console.log(`----- ${newEntries.length}件の投稿案(ランキング${rankingEntries.length}・急上昇${trendingEntries.length}) -----`);

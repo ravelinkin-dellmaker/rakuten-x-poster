@@ -33,7 +33,7 @@ export function detectSale(item, now = new Date()) {
   return { onSale: labels.length > 0, saleLabel: labels.join(" / ") || null };
 }
 
-export function buildPoolEntry(item, tweetText, source = "ranking") {
+export function buildPoolEntry(item, tweetText, source = "ranking", comment = null) {
   const price = Number(item.itemPrice);
   const { onSale, saleLabel } = detectSale(item);
   return {
@@ -48,6 +48,7 @@ export function buildPoolEntry(item, tweetText, source = "ranking") {
     source, // "ranking" | "trending"
     onSale,
     saleLabel,
+    comment, // AIが生成した一言コメント(無い場合はnull)
     tweetText,
     addedAt: new Date().toISOString(),
   };

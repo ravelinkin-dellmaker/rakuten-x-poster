@@ -40,6 +40,11 @@
 ### X (Twitter) アカウント
 - 通常のXアカウントがあればよい。API申請は不要。
 
+### Google Gemini API(任意・AIコメント機能を使う場合)
+1. [Google AI Studio](https://aistudio.google.com/apikey) でAPIキーを発行する(Googleアカウントがあれば無料で取得可能)。
+2. 無料枠のあるモデル(`gemini-3.7-flash`)を使っているため、この程度の利用量(1日数件)なら実質無料で運用できる見込み。
+3. 設定しなくても動く(その場合はAIコメント無しの従来テンプレートで投稿文が作られる)。
+
 ---
 
 ## 2. ローカルで試す(任意)
@@ -47,7 +52,7 @@
 ```bash
 npm install
 cp .env.example .env
-# .env に RAKUTEN_APP_ID / RAKUTEN_ACCESS_KEY / RAKUTEN_AFFILIATE_ID を書き込む(DRY_RUN=true のままなら投稿案はコンソール表示のみ)
+# .env に RAKUTEN_APP_ID / RAKUTEN_ACCESS_KEY / RAKUTEN_AFFILIATE_ID (/ GEMINI_API_KEY) を書き込む(DRY_RUN=true のままなら投稿案はコンソール表示のみ)
 npm start
 ```
 
@@ -57,7 +62,7 @@ npm start
 
 ## 3. GitHubにpush・Pages公開・Actions自動化
 
-1. GitHubリポジトリを作りpush、Secretsに `RAKUTEN_APP_ID` / `RAKUTEN_ACCESS_KEY` / `RAKUTEN_AFFILIATE_ID` を登録する。
+1. GitHubリポジトリを作りpush、Secretsに `RAKUTEN_APP_ID` / `RAKUTEN_ACCESS_KEY` / `RAKUTEN_AFFILIATE_ID` (/ 任意で `GEMINI_API_KEY`) を登録する。
 2. **Settings > Pages** で、Source を「Deploy from a branch」、Branch を `main` / `docs` に設定して保存する。
    - 数分で `https://<あなたのアカウント>.github.io/rakuten-x-poster/` が公開される。
 3. **Actions** タブ → `Rakuten Affiliate Pool Refill` → **Run workflow** で手動実行して動作確認する。
@@ -105,6 +110,7 @@ npm start
 
 - **セール中バッジ**: 楽天ランキングAPIのレスポンスに含まれる `startTime`/`endTime`(期間限定セール)、`pointRate`(ポイントアップキャンペーン)を見て、現在その期間内かどうかを判定している(追加のAPI呼び出し・追加コストなし)。
 - **急上昇バッジ**: 楽天には「話題の商品」を示す公式APIが無いため、代わりに**前回実行時の順位と比較して大きく順位が上がった商品**(新規ランクイン含む)を検知する自前ロジック(`src/trending.js`)。前回分の順位は `src/rankSnapshot.json` に保存され、次回実行時に比較に使われる。**初回実行時は比較対象が無いため急上昇は検知されない**(2回目以降から機能する)。
+- **AIコメント**: `GEMINI_API_KEY` を設定すると、商品名・キャッチコピー・商品説明からGoogle Gemini(`gemini-3.7-flash`)が一言コメントを生成し、投稿文に添える(`src/comment.js`)。レビュー本文自体は楽天APIで取得できないため、実際のレビュー内容そのものを読んで書いているわけではない点に注意。キー未設定・生成失敗時はコメント無しの従来テンプレートに自動でフォールバックする。
 
 ---
 
@@ -127,6 +133,7 @@ rakuten-x-poster/
 │   ├── formatTweet.js       # 投稿文の組み立て
 │   ├── pool.js              # pool.jsonのマージ・整形、セール判定
 │   ├── trending.js          # 順位急上昇の検知ロジック
+│   ├── comment.js           # Gemini APIによるAIコメント生成(任意)
 │   ├── history.json         # 提案済み商品コードの履歴(自動更新)
 │   └── rankSnapshot.json    # 前回実行時の順位スナップショット(自動更新)
 ├── docs/
