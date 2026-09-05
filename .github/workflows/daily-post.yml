@@ -2,8 +2,8 @@ name: Rakuten Affiliate Pool Refill
 
 on:
   schedule:
-    # 毎日 09:00 JST = 00:00 UTC
-    - cron: "0 0 * * *"
+    # 毎日 21:00 JST = 12:00 UTC
+    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
