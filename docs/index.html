@@ -128,6 +128,10 @@
   .btn-copy.copied {
     background: #4a7c4e;
   }
+  .btn-x {
+    background: #000;
+    color: #fff;
+  }
   .btn-done {
     background: transparent;
     border: 1px solid var(--border);
@@ -161,7 +165,7 @@
 <body>
 <header>
   <h1>🏆 楽天おすすめ投稿ボード</h1>
-  <div class="sub">コピーしてXに手動で投稿 → 投稿したら「投稿済み」を押してね</div>
+  <div class="sub">「Xで開く」で投稿画面に文章が入った状態で開く → 内容確認して投稿 → 「投稿済み」を押してね</div>
 </header>
 
 <div class="toggle-done">
@@ -249,6 +253,7 @@
                 ${reviewMeta ? " ・ " + reviewMeta : ""}
               </div>
               <div class="actions">
+                <button class="btn-x" data-action="openx">𝕏 で開く</button>
                 <button class="btn-copy" data-action="copy">📋 コピー</button>
                 <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
                   <button type="button" class="btn-done" style="background:transparent;">🔗 リンクを開く</button>
@@ -271,7 +276,10 @@
       const entry = pool.find((p) => p.itemCode === code);
       if (!entry) return;
 
-      if (btn.dataset.action === "copy") {
+      if (btn.dataset.action === "openx") {
+        const intentUrl = "https://x.com/intent/post?text=" + encodeURIComponent(entry.tweetText);
+        window.open(intentUrl, "_blank", "noopener");
+      } else if (btn.dataset.action === "copy") {
         navigator.clipboard.writeText(entry.tweetText).then(() => {
           btn.textContent = "✅ コピー済み";
           btn.classList.add("copied");
