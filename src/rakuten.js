@@ -6,17 +6,15 @@ const RANKING_ENDPOINT =
   "https://openapi.rakuten.co.jp/ichibaranking/api/IchibaItem/Ranking/20220601";
 
 /**
- * 楽天ランキングAPIを叩いて、まだ提案していない商品を最大 poolSize 件返す(プール用)。
- * 未提案の商品が足りない場合は、そのまま件数が少ないまま返す(無理に重複させない)。
+ * 楽天ランキングAPIを叩いて、ランキング順の商品一覧をそのまま返す(生データ)。
+ * ページネーションはせず、1回のリクエストで返ってくる範囲(概ね上位30件)のみ。
  */
-export async function fetchRankingItems({
+export async function fetchRanking({
   appId,
   accessKey,
   affiliateId,
   genreId,
   period,
-  excludeCodes = [],
-  poolSize = 1,
   referer,
 }) {
   if (!appId) {
@@ -56,8 +54,15 @@ export async function fetchRankingItems({
     );
   }
 
+  return items;
+}
+
+/**
+ * ランキングの中から、まだ提案していない商品を最大 poolSize 件返す(プール用)。
+ * 未提案の商品が足りない場合は、そのまま件数が少ないまま返す(無理に重複させない)。
+ */
+export function pickFreshItems(items, excludeCodes = [], poolSize = 1) {
   const fresh = items.filter((item) => !excludeCodes.includes(item.itemCode));
   const pool = fresh.length > 0 ? fresh : items; // 全件提案済みなら1位から出し直す
-
   return pool.slice(0, poolSize);
 }

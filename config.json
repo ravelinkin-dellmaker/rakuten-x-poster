@@ -5,5 +5,8 @@
   "historySize": 60,
   "poolSize": 2,
   "referer": "https://x.com/",
-  "maxPoolDisplay": 20
+  "maxPoolDisplay": 20,
+  "trendingEnabled": true,
+  "trendingPoolSize": 2,
+  "trendingRankJump": 5
 }

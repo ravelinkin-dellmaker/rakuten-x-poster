@@ -38,6 +38,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/history.json docs/pool.json
+          git add src/history.json src/rankSnapshot.json docs/pool.json
           git diff --staged --quiet || git commit -m "chore: update post pool [skip ci]"
           git push

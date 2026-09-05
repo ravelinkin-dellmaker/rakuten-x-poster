@@ -1,15 +1,16 @@
 # rakuten-x-poster
 
-楽天アフィリエイトの人気ランキング商品を、週1回まとめて「投稿案プール」として用意する専用Webアプリ。
-**Xへの投稿自体は手動**(Webアプリでコピーして自分でポストする)。
+楽天アフィリエイトの人気ランキング商品を、毎日自動で「投稿案プール」として用意する専用Webアプリ。
+**Xへの投稿自体は手動**(Webアプリの「𝕏で開く」で投稿画面を開いて自分でポストする)。
 
 ## 使い方(完成後のイメージ)
 
 `https://<あなたのアカウント>.github.io/rakuten-x-poster/` をスマホのホーム画面に追加しておく。
 
-1. 週1回、自動でおすすめ商品カードが5件補充される
-2. カードの「📋 コピー」を押す → Xを開いて貼り付けて投稿
-3. 投稿し終わったら「✅ 投稿済みにする」を押す(自分の端末だけに記録される)
+1. 毎日自動でおすすめ商品カードが補充される(通常ランキングに加えて、セール中・急上昇中もタグ付けされる)
+2. 上部のタブで「すべて / 🏆ランキング / 🔥セール / 📈急上昇」を切り替えて見たいものだけ表示できる
+3. カードの「𝕏 で開く」を押す → 投稿文が入った状態でXの投稿画面が開く → 内容確認して投稿
+4. 投稿し終わったら「✅ 投稿済みにする」を押す(自分の端末だけに記録される)
 
 ---
 
@@ -78,7 +79,10 @@ npm start
   "historySize": 60,
   "poolSize": 2,
   "referer": "https://x.com/",
-  "maxPoolDisplay": 20
+  "maxPoolDisplay": 20,
+  "trendingEnabled": true,
+  "trendingPoolSize": 2,
+  "trendingRankJump": 5
 }
 ```
 
@@ -88,11 +92,19 @@ npm start
 - `genreLabel`: 投稿文とハッシュタグに使う日本語ラベル。
 - `period`: `realtime` / `daily` / `weekly` / `monthly` から選択。
 - `historySize`: 直近何件を「提案済み」として重複を避けるか(ランキング取得時の重複防止用)。
-- `poolSize`: 1回の実行で何件の投稿案を新規追加するか。
+- `poolSize`: 1回の実行で何件のランキング投稿案を新規追加するか。
 - `referer` / `Origin`: 楽天アプリ登録時の「許可されたWebサイト」と一致させること。
 - `maxPoolDisplay`: Webアプリに表示するプールの最大件数(古いものから溢れて消える)。
+- `trendingEnabled`: 順位急上昇検知を有効にするか。
+- `trendingPoolSize`: 1回の実行で何件の急上昇商品を新規追加するか。
+- `trendingRankJump`: 前回スナップショットからこの順位数以上上がっていたら「急上昇」とみなす(新規ランクインは常に急上昇扱い)。
 
 補充頻度・時刻を変えたい場合は `.github/workflows/daily-post.yml` の `cron` を編集する(UTC指定なのでJSTから9時間引いた時刻)。
+
+### セール検知・急上昇検知の仕組み
+
+- **セール中バッジ**: 楽天ランキングAPIのレスポンスに含まれる `startTime`/`endTime`(期間限定セール)、`pointRate`(ポイントアップキャンペーン)を見て、現在その期間内かどうかを判定している(追加のAPI呼び出し・追加コストなし)。
+- **急上昇バッジ**: 楽天には「話題の商品」を示す公式APIが無いため、代わりに**前回実行時の順位と比較して大きく順位が上がった商品**(新規ランクイン含む)を検知する自前ロジック(`src/trending.js`)。前回分の順位は `src/rankSnapshot.json` に保存され、次回実行時に比較に使われる。**初回実行時は比較対象が無いため急上昇は検知されない**(2回目以降から機能する)。
 
 ---
 
@@ -113,11 +125,13 @@ rakuten-x-poster/
 │   ├── index.js             # エントリーポイント
 │   ├── rakuten.js           # 楽天ランキングAPI呼び出し(Referer/Origin対応)
 │   ├── formatTweet.js       # 投稿文の組み立て
-│   ├── pool.js              # pool.jsonのマージ・整形
-│   └── history.json         # 提案済み商品コードの履歴(自動更新)
+│   ├── pool.js              # pool.jsonのマージ・整形、セール判定
+│   ├── trending.js          # 順位急上昇の検知ロジック
+│   ├── history.json         # 提案済み商品コードの履歴(自動更新)
+│   └── rankSnapshot.json    # 前回実行時の順位スナップショット(自動更新)
 ├── docs/
-│   ├── index.html           # 専用Webアプリ本体(GitHub Pagesで公開)
+│   ├── index.html           # 専用Webアプリ本体(GitHub Pagesで公開、タブ切り替え・バッジ表示)
 │   └── pool.json            # 投稿案プールのデータ(自動更新)
 └── .github/workflows/
-    └── daily-post.yml       # 週1回プールを補充するGitHub Actions定義
+    └── daily-post.yml       # 毎日プールを補充するGitHub Actions定義
 ```

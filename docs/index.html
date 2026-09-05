@@ -160,6 +160,57 @@
     align-items: center;
     gap: 6px;
   }
+  .tabs {
+    max-width: 640px;
+    margin: 0 auto 14px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    font-size: 0.8rem;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-sub);
+    cursor: pointer;
+  }
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge-ranking {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .badge-trending {
+    background: #e5eef8;
+    color: #2c6cad;
+  }
+  .badge-sale {
+    background: #fdeee0;
+    color: #c06a1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .badge-trending { background: #1c2b3a; color: #7ab0e0; }
+    :root:not([data-theme="light"]) .badge-sale { background: #3a2a18; color: #e0a15e; }
+  }
+  :root[data-theme="dark"] .badge-trending { background: #1c2b3a; color: #7ab0e0; }
+  :root[data-theme="dark"] .badge-sale { background: #3a2a18; color: #e0a15e; }
 </style>
 </head>
 <body>
@@ -167,6 +218,13 @@
   <h1>🏆 楽天おすすめ投稿ボード</h1>
   <div class="sub">「Xで開く」で投稿画面に文章が入った状態で開く → 内容確認して投稿 → 「投稿済み」を押してね</div>
 </header>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-filter="all">すべて</button>
+  <button class="tab" data-filter="ranking">🏆 ランキング</button>
+  <button class="tab" data-filter="sale">🔥 セール</button>
+  <button class="tab" data-filter="trending">📈 急上昇</button>
+</div>
 
 <div class="toggle-done">
   <label><input type="checkbox" id="showDone" /> 投稿済みも表示</label>
@@ -211,6 +269,8 @@
   async function main() {
     const list = document.getElementById("list");
     const showDoneCheckbox = document.getElementById("showDone");
+    const tabs = document.getElementById("tabs");
+    let currentFilter = "all";
     let pool = [];
 
     try {
@@ -228,10 +288,15 @@
       const visible = pool
         .slice()
         .reverse() // 新しい順
-        .filter((item) => showDone || !doneSet.has(item.itemCode));
+        .filter((item) => showDone || !doneSet.has(item.itemCode))
+        .filter((item) => {
+          if (currentFilter === "all") return true;
+          if (currentFilter === "sale") return item.onSale;
+          return item.source === currentFilter;
+        });
 
       if (visible.length === 0) {
-        list.innerHTML = '<div class="empty">今のプールは空。来週の自動補充を待つか、Actionsを手動実行してね。</div>';
+        list.innerHTML = '<div class="empty">この条件に当てはまる投稿案はまだ無いよ。</div>';
         return;
       }
 
@@ -243,10 +308,17 @@
         const reviewMeta = item.reviewAverage
           ? `${renderStars(item.reviewAverage)} (${item.reviewCount ?? 0}件)`
           : "";
+        const badges = [
+          item.source === "trending"
+            ? '<span class="badge badge-trending">📈 急上昇</span>'
+            : '<span class="badge badge-ranking">🏆 ランキング</span>',
+          item.onSale ? `<span class="badge badge-sale">🔥 ${escapeHtml(item.saleLabel || "セール中")}</span>` : "",
+        ].filter(Boolean).join("");
         return `
           <div class="card ${isDone ? "done" : ""}" data-code="${escapeHtml(item.itemCode)}">
             ${img}
             <div class="card-body">
+              <div class="badges">${badges}</div>
               <p class="item-name">${escapeHtml(item.name)}</p>
               <div class="meta">
                 <span class="price">${item.price ? item.price.toLocaleString("ja-JP") + "円" : ""}</span>
@@ -301,6 +373,15 @@
         saveDoneSet(doneSet);
         render();
       }
+    });
+
+    tabs.addEventListener("click", (e) => {
+      const tab = e.target.closest(".tab");
+      if (!tab) return;
+      tabs.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      currentFilter = tab.dataset.filter;
+      render();
     });
 
     showDoneCheckbox.addEventListener("change", render);
