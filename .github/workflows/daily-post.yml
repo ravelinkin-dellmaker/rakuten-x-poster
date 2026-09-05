@@ -1,0 +1,46 @@
+name: Rakuten Affiliate Pool Refill
+
+on:
+  schedule:
+    # 毎週月曜 09:00 JST = 毎週月曜 00:00 UTC
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true にするとIssueを作成せず内容確認のみ行う"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Run poster
+        env:
+          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+          RAKUTEN_ACCESS_KEY: ${{ secrets.RAKUTEN_ACCESS_KEY }}
+          RAKUTEN_AFFILIATE_ID: ${{ secrets.RAKUTEN_AFFILIATE_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: npm start
+
+      - name: Commit updated history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/history.json
+          git diff --staged --quiet || git commit -m "chore: update post history [skip ci]"
+          git push

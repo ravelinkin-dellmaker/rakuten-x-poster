@@ -1,0 +1,8 @@
+{
+  "genreId": "0",
+  "genreLabel": "総合",
+  "period": "realtime",
+  "historySize": 60,
+  "poolSize": 5,
+  "referer": "https://x.com/"
+}
