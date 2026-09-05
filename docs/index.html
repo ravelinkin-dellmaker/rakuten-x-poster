@@ -346,7 +346,9 @@
                 ${reviewMeta ? " ・ " + reviewMeta : ""}
               </div>
               <div class="actions">
-                <button class="btn-x" data-action="openx">𝕏 で開く</button>
+                <a href="https://x.com/intent/post?text=${encodeURIComponent(item.tweetText)}" target="_blank" rel="noopener">
+                  <button type="button" class="btn-x">𝕏 で開く</button>
+                </a>
                 <button class="btn-copy" data-action="copy">📋 コピー</button>
                 <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
                   <button type="button" class="btn-done" style="background:transparent;">🔗 リンクを開く</button>
@@ -369,10 +371,7 @@
       const entry = pool.find((p) => p.itemCode === code);
       if (!entry) return;
 
-      if (btn.dataset.action === "openx") {
-        const intentUrl = "https://x.com/intent/post?text=" + encodeURIComponent(entry.tweetText);
-        window.open(intentUrl, "_blank", "noopener");
-      } else if (btn.dataset.action === "copy") {
+      if (btn.dataset.action === "copy") {
         navigator.clipboard.writeText(entry.tweetText).then(() => {
           btn.textContent = "✅ コピー済み";
           btn.classList.add("copied");
