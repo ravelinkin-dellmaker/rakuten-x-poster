@@ -62,7 +62,7 @@ npm start
 3. **Actions** タブ → `Rakuten Affiliate Pool Refill` → **Run workflow** で手動実行して動作確認する。
    - `dry_run` を `true` にすれば `pool.json` を更新せずログだけ確認できる。
 4. 成功すると `docs/pool.json` が更新・commitされ、Webアプリに反映される。
-5. 問題なければ毎週月曜 `.github/workflows/daily-post.yml` の cron (`0 0 * * 1` = 毎週月曜9時JST) で自動的にプールが補充される。
+5. 問題なければ毎日 `.github/workflows/daily-post.yml` の cron (`0 0 * * *` = 毎日9時JST) で自動的にプールが補充される。
 
 ---
 
@@ -76,7 +76,7 @@ npm start
   "genreLabel": "総合",
   "period": "realtime",
   "historySize": 60,
-  "poolSize": 5,
+  "poolSize": 2,
   "referer": "https://x.com/",
   "maxPoolDisplay": 20
 }
