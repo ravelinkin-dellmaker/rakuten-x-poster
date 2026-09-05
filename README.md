@@ -1,7 +1,17 @@
 # rakuten-x-poster
 
-楽天アフィリエイトの人気ランキング商品を、週1回まとめて「投稿案プール」として用意するツール。
-**Xへの投稿自体は手動**(GitHub Issueに溜まった下書きから好きなものを選んでコピー&自分でポストする)。
+楽天アフィリエイトの人気ランキング商品を、週1回まとめて「投稿案プール」として用意する専用Webアプリ。
+**Xへの投稿自体は手動**(Webアプリでコピーして自分でポストする)。
+
+## 使い方(完成後のイメージ)
+
+`https://<あなたのアカウント>.github.io/rakuten-x-poster/` をスマホのホーム画面に追加しておく。
+
+1. 週1回、自動でおすすめ商品カードが5件補充される
+2. カードの「📋 コピー」を押す → Xを開いて貼り付けて投稿
+3. 投稿し終わったら「✅ 投稿済みにする」を押す(自分の端末だけに記録される)
+
+---
 
 ## なぜ完全自動投稿にしないのか
 
@@ -13,7 +23,6 @@
 そのため、このツールは**投稿文の作成まで**を自動化し、実際にXへ投稿するボタンを押すのは人間(あなた)にしている。
 これにより:
 - 楽天の禁止事項(機械的な自動投稿)に抵触しない
-- 毎日の作業は「Issueを開いてコピペしてポスト」の数十秒だけで済む
 - X Developer Portalでのアプリ申請・APIキー取得が不要になる(投稿用APIを使わないため)
 
 ---
@@ -21,8 +30,9 @@
 ## 1. 必要なもの
 
 ### 楽天API
-1. [楽天ウェブサービス](https://webservice.rakuten.co.jp/) にアプリ登録し、**アプリケーションID**と**アクセスキー(`pk_`から始まる文字列)**を取得する(アプリケーションタイプは「WEB」を選択)。
+1. [楽天ウェブサービス](https://webservice.rakuten.co.jp/) にアプリ登録し、**アプリケーションID**と**アクセスキー(`pk_`から始まる文字列)**を取得する(アプリケーションタイプは「WEB」、許可されたWebサイトは投稿先のXアカウントのドメイン`x.com`など)。
    - 2026年のAPI移行により、この2つがセットで必須になった。
+   - APIリクエストには、登録した許可サイトと同じ`Referer`・`Origin`ヘッダーの両方が必要(`src/rakuten.js`で対応済み)。
 2. [楽天アフィリエイト](https://affiliate.rakuten.co.jp/) に登録し、**アフィリエイトID**を取得する。
    - これが無くても動くが、無いと成果報酬が発生しないリンクになるので必ず取得すること。
 
@@ -40,31 +50,19 @@ cp .env.example .env
 npm start
 ```
 
+`DRY_RUN=false` で実行すると `docs/pool.json` が生成される。`npx http-server docs` などでローカル確認できる。
+
 ---
 
-## 3. GitHubにpushしてActionsで自動化する
+## 3. GitHubにpush・Pages公開・Actions自動化
 
-1. このフォルダでGitHubリポジトリを作る。
-   ```bash
-   git init
-   git add .
-   git commit -m "init: rakuten-x-poster"
-   git branch -M main
-   git remote add origin https://github.com/<あなたのアカウント>/rakuten-x-poster.git
-   git push -u origin main
-   ```
-2. GitHubリポジトリの **Settings > Secrets and variables > Actions > New repository secret** で以下を登録する:
-   - `RAKUTEN_APP_ID`
-   - `RAKUTEN_ACCESS_KEY`(`pk_`から始まる文字列。2026年のAPI移行で必須になった)
-   - `RAKUTEN_AFFILIATE_ID`
-   - (`GITHUB_TOKEN` はGitHub Actionsが自動で用意するので登録不要)
+1. GitHubリポジトリを作りpush、Secretsに `RAKUTEN_APP_ID` / `RAKUTEN_ACCESS_KEY` / `RAKUTEN_AFFILIATE_ID` を登録する。
+2. **Settings > Pages** で、Source を「Deploy from a branch」、Branch を `main` / `docs` に設定して保存する。
+   - 数分で `https://<あなたのアカウント>.github.io/rakuten-x-poster/` が公開される。
 3. **Actions** タブ → `Rakuten Affiliate Pool Refill` → **Run workflow** で手動実行して動作確認する。
-   - `dry_run` を `true` にすればIssueを作らずログだけ確認できる。
-4. 成功すると、リポジトリの **Issues** タブに「📝 投稿案 (日付) #1」〜「#5」が作成される(件数は`poolSize`で調整可)。
-   - 好きなタイミングでIssueを開き、中身をコピーしてXアプリ/サイトから**自分で手動投稿**する。
-   - 投稿し終わったIssueはCloseしてプールから消す。
+   - `dry_run` を `true` にすれば `pool.json` を更新せずログだけ確認できる。
+4. 成功すると `docs/pool.json` が更新・commitされ、Webアプリに反映される。
 5. 問題なければ毎週月曜 `.github/workflows/daily-post.yml` の cron (`0 0 * * 1` = 毎週月曜9時JST) で自動的にプールが補充される。
-   - Issueが作成されるとGitHubの通知(デフォルトはメール/Web通知)が届く。
 
 ---
 
@@ -78,7 +76,9 @@ npm start
   "genreLabel": "総合",
   "period": "realtime",
   "historySize": 60,
-  "poolSize": 5
+  "poolSize": 5,
+  "referer": "https://x.com/",
+  "maxPoolDisplay": 20
 }
 ```
 
@@ -87,8 +87,10 @@ npm start
   楽天市場のカテゴリページURL末尾の数字から調べて差し替える(例: 家電=100804、コスメ=100939 など。時期により変わるため要確認)。
 - `genreLabel`: 投稿文とハッシュタグに使う日本語ラベル。
 - `period`: `realtime` / `daily` / `weekly` / `monthly` から選択。
-- `historySize`: 直近何件を「提案済み」として重複を避けるか。
-- `poolSize`: 1回の実行で何件の投稿案プールを作るか。
+- `historySize`: 直近何件を「提案済み」として重複を避けるか(ランキング取得時の重複防止用)。
+- `poolSize`: 1回の実行で何件の投稿案を新規追加するか。
+- `referer` / `Origin`: 楽天アプリ登録時の「許可されたWebサイト」と一致させること。
+- `maxPoolDisplay`: Webアプリに表示するプールの最大件数(古いものから溢れて消える)。
 
 補充頻度・時刻を変えたい場合は `.github/workflows/daily-post.yml` の `cron` を編集する(UTC指定なのでJSTから9時間引いた時刻)。
 
@@ -109,10 +111,13 @@ rakuten-x-poster/
 ├── config.json              # ジャンル・件数・プールサイズなどの設定
 ├── src/
 │   ├── index.js             # エントリーポイント
-│   ├── rakuten.js           # 楽天ランキングAPI呼び出し(複数件プール取得)
+│   ├── rakuten.js           # 楽天ランキングAPI呼び出し(Referer/Origin対応)
 │   ├── formatTweet.js       # 投稿文の組み立て
-│   ├── github.js            # 投稿案をGitHub Issueとして登録
+│   ├── pool.js              # pool.jsonのマージ・整形
 │   └── history.json         # 提案済み商品コードの履歴(自動更新)
+├── docs/
+│   ├── index.html           # 専用Webアプリ本体(GitHub Pagesで公開)
+│   └── pool.json            # 投稿案プールのデータ(自動更新)
 └── .github/workflows/
     └── daily-post.yml       # 週1回プールを補充するGitHub Actions定義
 ```

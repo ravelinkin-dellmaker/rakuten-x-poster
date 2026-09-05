@@ -4,5 +4,6 @@
   "period": "realtime",
   "historySize": 60,
   "poolSize": 5,
-  "referer": "https://x.com/"
+  "referer": "https://x.com/",
+  "maxPoolDisplay": 20
 }

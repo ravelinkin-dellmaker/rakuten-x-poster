@@ -1,15 +1,16 @@
 import "dotenv/config";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { fetchRankingItems } from "./rakuten.js";
 import { formatTweet } from "./formatTweet.js";
-import { createDraftIssue } from "./github.js";
+import { buildPoolEntry, mergePool } from "./pool.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "..", "config.json");
 const historyPath = path.join(__dirname, "history.json");
+const poolPath = path.join(__dirname, "..", "docs", "pool.json");
 
 async function loadJson(filePath, fallback) {
   try {
@@ -21,15 +22,6 @@ async function loadJson(filePath, fallback) {
   }
 }
 
-function todayJst() {
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
 async function main() {
   const config = await loadJson(configPath, {
     genreId: "0",
@@ -38,8 +30,10 @@ async function main() {
     historySize: 60,
     poolSize: 5,
     referer: "https://x.com/",
+    maxPoolDisplay: 20,
   });
   const history = await loadJson(historyPath, []);
+  const existingPool = await loadJson(poolPath, []);
 
   const items = await fetchRankingItems({
     appId: process.env.RAKUTEN_APP_ID,
@@ -53,51 +47,24 @@ async function main() {
   });
 
   const dryRun = process.env.DRY_RUN === "true";
-  const date = todayJst();
+  const newEntries = items.map((item) =>
+    buildPoolEntry(item, formatTweet(item, config.genreLabel))
+  );
 
-  for (const [i, item] of items.entries()) {
-    const tweetText = formatTweet(item, config.genreLabel);
-    console.log(`----- 投稿案 ${i + 1}/${items.length} -----`);
-    console.log(tweetText);
-    console.log("------------------");
-
-    if (dryRun) {
-      continue;
-    }
-
-    const issueBody = [
-      "## おすすめ商品",
-      "",
-      "以下の文章をコピーして、ご自身の手でXに投稿してください。",
-      "`#PR` は消さないこと(ステマ規制対応のため必須)。",
-      "",
-      "投稿し終わったら、このIssueをCloseしてプールから消してください。",
-      "",
-      "```",
-      tweetText,
-      "```",
-    ].join("\n");
-
-    const issue = await createDraftIssue({
-      token: process.env.GITHUB_TOKEN,
-      repo: process.env.GITHUB_REPOSITORY,
-      title: `📝 投稿案 (${date}) #${i + 1}`,
-      body: issueBody,
-    });
-
-    if (issue) {
-      console.log("Issueを作成しました:", issue.html_url);
-    } else {
-      console.log(
-        "(GITHUB_TOKEN / GITHUB_REPOSITORY が無いためIssue作成はスキップしました)"
-      );
-    }
+  console.log(`----- ${newEntries.length}件の投稿案 -----`);
+  for (const entry of newEntries) {
+    console.log(`- [${entry.price}円] ${entry.name.slice(0, 40)}...`);
   }
 
   if (dryRun) {
-    console.log("(DRY_RUN=true のため下書きIssueの作成はスキップしました)");
+    console.log("(DRY_RUN=true のためpool.jsonの更新はスキップしました)");
     return;
   }
+
+  const updatedPool = mergePool(existingPool, newEntries, config.maxPoolDisplay ?? 20);
+  await mkdir(path.dirname(poolPath), { recursive: true });
+  await writeFile(poolPath, JSON.stringify(updatedPool, null, 2) + "\n", "utf-8");
+  console.log(`pool.json を更新しました(${updatedPool.length}件)`);
 
   const historySize = config.historySize ?? 60;
   const newCodes = items.map((item) => item.itemCode);

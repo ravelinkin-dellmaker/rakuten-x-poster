@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>楽天おすすめ投稿ボード</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f3ef;
+    --card-bg: #ffffff;
+    --text: #1f1b16;
+    --text-sub: #6b6258;
+    --accent: #bf3b2e;
+    --accent-soft: #f6ded9;
+    --border: #e7e0d6;
+    --done-bg: #eef1ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140f;
+      --card-bg: #211d17;
+      --text: #f1ece2;
+      --text-sub: #a89e8f;
+      --accent: #e0685a;
+      --accent-soft: #3a2420;
+      --border: #332d24;
+      --done-bg: #1c2019;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17140f;
+    --card-bg: #211d17;
+    --text: #f1ece2;
+    --text-sub: #a89e8f;
+    --accent: #e0685a;
+    --accent-soft: #3a2420;
+    --border: #332d24;
+    --done-bg: #1c2019;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    padding: 20px 14px 60px;
+  }
+  header {
+    max-width: 640px;
+    margin: 0 auto 20px;
+  }
+  h1 {
+    font-size: 1.3rem;
+    margin: 0 0 4px;
+  }
+  .sub {
+    color: var(--text-sub);
+    font-size: 0.85rem;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    gap: 12px;
+    transition: opacity 0.2s;
+  }
+  .card.done {
+    opacity: 0.45;
+    background: var(--done-bg);
+  }
+  .card img {
+    width: 84px;
+    height: 84px;
+    object-fit: cover;
+    border-radius: 10px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .card-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .item-name {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 0 0 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .meta {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    margin-bottom: 10px;
+  }
+  .price {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  button {
+    font: inherit;
+    border: none;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .btn-copy {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-copy.copied {
+    background: #4a7c4e;
+  }
+  .btn-done {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-sub);
+  }
+  .btn-undo {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-sub);
+  }
+  .empty, .loading {
+    text-align: center;
+    color: var(--text-sub);
+    padding: 40px 0;
+  }
+  .toggle-done {
+    max-width: 640px;
+    margin: 0 auto 14px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .toggle-done label {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏆 楽天おすすめ投稿ボード</h1>
+  <div class="sub">コピーしてXに手動で投稿 → 投稿したら「投稿済み」を押してね</div>
+</header>
+
+<div class="toggle-done">
+  <label><input type="checkbox" id="showDone" /> 投稿済みも表示</label>
+</div>
+
+<main id="list">
+  <div class="loading">読み込み中…</div>
+</main>
+
+<script>
+(function () {
+  const DONE_KEY = "rakuten-x-poster:done";
+
+  function getDoneSet() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(DONE_KEY) || "[]"));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveDoneSet(set) {
+    try {
+      localStorage.setItem(DONE_KEY, JSON.stringify([...set]));
+    } catch {
+      // localStorageが使えない環境では単に永続化を諦める
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function renderStars(avg) {
+    if (!avg) return "";
+    const rounded = Math.round(avg * 2) / 2;
+    return `⭐${rounded}`;
+  }
+
+  async function main() {
+    const list = document.getElementById("list");
+    const showDoneCheckbox = document.getElementById("showDone");
+    let pool = [];
+
+    try {
+      const res = await fetch("./pool.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("pool.json not found");
+      pool = await res.json();
+    } catch (e) {
+      list.innerHTML = '<div class="empty">まだ投稿案がありません。GitHub Actionsの初回実行を待ってね。</div>';
+      return;
+    }
+
+    function render() {
+      const doneSet = getDoneSet();
+      const showDone = showDoneCheckbox.checked;
+      const visible = pool
+        .slice()
+        .reverse() // 新しい順
+        .filter((item) => showDone || !doneSet.has(item.itemCode));
+
+      if (visible.length === 0) {
+        list.innerHTML = '<div class="empty">今のプールは空。来週の自動補充を待つか、Actionsを手動実行してね。</div>';
+        return;
+      }
+
+      list.innerHTML = visible.map((item) => {
+        const isDone = doneSet.has(item.itemCode);
+        const img = item.image
+          ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy" />`
+          : `<div style="width:84px;height:84px;border-radius:10px;background:var(--border);flex-shrink:0;"></div>`;
+        const reviewMeta = item.reviewAverage
+          ? `${renderStars(item.reviewAverage)} (${item.reviewCount ?? 0}件)`
+          : "";
+        return `
+          <div class="card ${isDone ? "done" : ""}" data-code="${escapeHtml(item.itemCode)}">
+            ${img}
+            <div class="card-body">
+              <p class="item-name">${escapeHtml(item.name)}</p>
+              <div class="meta">
+                <span class="price">${item.price ? item.price.toLocaleString("ja-JP") + "円" : ""}</span>
+                ${reviewMeta ? " ・ " + reviewMeta : ""}
+              </div>
+              <div class="actions">
+                <button class="btn-copy" data-action="copy">📋 コピー</button>
+                <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
+                  <button type="button" class="btn-done" style="background:transparent;">🔗 リンクを開く</button>
+                </a>
+                ${isDone
+                  ? `<button class="btn-undo" data-action="undo">↩️ 戻す</button>`
+                  : `<button class="btn-done" data-action="done">✅ 投稿済みにする</button>`}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    list.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const card = e.target.closest(".card");
+      const code = card.dataset.code;
+      const entry = pool.find((p) => p.itemCode === code);
+      if (!entry) return;
+
+      if (btn.dataset.action === "copy") {
+        navigator.clipboard.writeText(entry.tweetText).then(() => {
+          btn.textContent = "✅ コピー済み";
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.textContent = "📋 コピー";
+            btn.classList.remove("copied");
+          }, 1500);
+        }).catch(() => {
+          alert(entry.tweetText);
+        });
+      } else if (btn.dataset.action === "done") {
+        const doneSet = getDoneSet();
+        doneSet.add(code);
+        saveDoneSet(doneSet);
+        render();
+      } else if (btn.dataset.action === "undo") {
+        const doneSet = getDoneSet();
+        doneSet.delete(code);
+        saveDoneSet(doneSet);
+        render();
+      }
+    });
+
+    showDoneCheckbox.addEventListener("change", render);
+    render();
+  }
+
+  main();
+})();
+</script>
+</body>
+</html>
