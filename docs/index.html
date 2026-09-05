@@ -49,6 +49,10 @@
   header {
     max-width: 640px;
     margin: 0 auto 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
   }
   h1 {
     font-size: 1.3rem;
@@ -57,6 +61,20 @@
   .sub {
     color: var(--text-sub);
     font-size: 0.85rem;
+  }
+  .btn-dashboard {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    text-decoration: none;
+    white-space: nowrap;
   }
   main {
     max-width: 640px;
@@ -215,8 +233,11 @@
 </head>
 <body>
 <header>
-  <h1>🏆 楽天おすすめ投稿ボード</h1>
-  <div class="sub">「Xで開く」で投稿画面に文章が入った状態で開く → 内容確認して投稿 → 「投稿済み」を押してね</div>
+  <div>
+    <h1>🏆 楽天おすすめ投稿ボード</h1>
+    <div class="sub">「Xで開く」で投稿画面に文章が入った状態で開く → 内容確認して投稿 → 「投稿済み」を押してね</div>
+  </div>
+  <a class="btn-dashboard" href="https://affiliate.rakuten.co.jp/report/" target="_blank" rel="noopener">📊 成果を見る</a>
 </header>
 
 <div class="tabs" id="tabs">
