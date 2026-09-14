@@ -246,6 +246,63 @@
     background: #7c4a9c;
     border-color: #7c4a9c;
   }
+  .sync-bar {
+    max-width: 640px;
+    margin: 0 auto 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sync-status {
+    font-size: 0.75rem;
+    color: var(--text-sub);
+  }
+  .btn-sync-toggle {
+    font-size: 0.75rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-sub);
+    cursor: pointer;
+  }
+  .sync-panel {
+    max-width: 640px;
+    margin: 0 auto 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    line-height: 1.6;
+  }
+  .sync-panel h2 {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin: 0 0 6px;
+  }
+  .sync-panel input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    margin: 8px 0;
+  }
+  .sync-panel .sync-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sync-panel a {
+    color: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -266,6 +323,29 @@
 
 <div class="tabs tabs-genre" id="genreTabs" hidden></div>
 
+<div class="sync-bar">
+  <span class="sync-status" id="syncStatus">🔗 端末間同期: 確認中…</span>
+  <button type="button" class="btn-sync-toggle" id="syncToggle">⚙️ 同期設定</button>
+</div>
+
+<div class="sync-panel" id="syncPanel" hidden>
+  <h2>📱💻 端末間で「投稿済み」を同期する</h2>
+  <p>
+    ここで設定しなくても今まで通り使えるけど、設定すると「投稿済みにする」を押した記録がこのGitHubリポジトリに保存されて、他の端末にも反映されるようになるよ(反映まで1分前後かかることがある)。<br />
+    未設定のままだと、この端末だけの記録になる(=他の端末では投稿済みか分からず、重複ポストしやすい)。
+  </p>
+  <p>
+    <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHubのFine-grained personal access token作成ページ</a>
+    で、「Repository access」をこのリポジトリのみに限定し、「Permissions → Contents」を <b>Read and write</b> にして発行したトークンを貼り付けてね。<br />
+    トークンはこの端末のブラウザ内だけに保存され、他には送信されない(GitHubへの同期通信を除く)。他人と共有する端末では設定しないこと。
+  </p>
+  <input type="password" id="syncTokenInput" placeholder="github_pat_... を貼り付け" autocomplete="off" />
+  <div class="sync-actions">
+    <button type="button" class="btn-done" id="syncTokenSave">💾 保存</button>
+    <button type="button" class="btn-undo" id="syncTokenClear">🗑️ 解除</button>
+  </div>
+</div>
+
 <div class="toggle-done">
   <label><input type="checkbox" id="showDone" /> 投稿済みも表示</label>
 </div>
@@ -277,6 +357,16 @@
 <script>
 (function () {
   const DONE_KEY = "rakuten-x-poster:done";
+  const TOKEN_KEY = "rakuten-x-poster:ghtoken";
+
+  // 「投稿済み」をこのGitHubリポジトリのdocs/done.jsonにも書き込むことで、
+  // 複数端末(PC・スマホなど)間で投稿済み状態を同期し、重複ポストを防ぐ。
+  // トークン未設定ならこの端末のlocalStorageのみで今まで通り動く(同期はされない)。
+  const GH_OWNER = "ravelinkin-dellmaker";
+  const GH_REPO = "rakuten-x-poster";
+  const GH_BRANCH = "main";
+  const GH_DONE_PATH = "docs/done.json";
+  const GH_API_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_DONE_PATH}`;
 
   function getDoneSet() {
     try {
@@ -292,6 +382,86 @@
     } catch {
       // localStorageが使えない環境では単に永続化を諦める
     }
+  }
+
+  function getToken() {
+    try {
+      return localStorage.getItem(TOKEN_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function saveToken(token) {
+    try {
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      // localStorageが使えない環境では単に諦める(同期機能は使えない)
+    }
+  }
+
+  function base64ToText(base64) {
+    return decodeURIComponent(escape(atob(base64.replace(/\n/g, ""))));
+  }
+
+  function textToBase64(text) {
+    return btoa(unescape(encodeURIComponent(text)));
+  }
+
+  // docs/done.json をPages経由で読む(認証不要・API回数制限を消費しない)。
+  // ページ読み込み時に「他端末で投稿済みにした分」を取り込むためだけに使う。
+  async function fetchDoneViaPages() {
+    try {
+      const res = await fetch("./done.json", { cache: "no-store" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // GitHub Contents APIで最新のdone.jsonとsha(更新時に必要)を取得する。
+  async function fetchDoneViaApi(token) {
+    const res = await fetch(`${GH_API_URL}?ref=${GH_BRANCH}`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error(`done.json取得に失敗しました(${res.status})`);
+    }
+    const data = await res.json();
+    const list = JSON.parse(base64ToText(data.content));
+    return { list: Array.isArray(list) ? list : [], sha: data.sha };
+  }
+
+  // done.jsonをコミットして書き込む。
+  async function pushDoneViaApi(list, sha, token) {
+    const res = await fetch(GH_API_URL, {
+      method: "PUT",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: "chore: sync done state [skip ci]",
+        content: textToBase64(JSON.stringify(list, null, 2) + "\n"),
+        sha,
+        branch: GH_BRANCH,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.message || `done.json更新に失敗しました(${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
   }
 
   function escapeHtml(str) {
@@ -311,9 +481,16 @@
     const showDoneCheckbox = document.getElementById("showDone");
     const tabs = document.getElementById("tabs");
     const genreTabs = document.getElementById("genreTabs");
+    const syncStatusEl = document.getElementById("syncStatus");
+    const syncToggle = document.getElementById("syncToggle");
+    const syncPanel = document.getElementById("syncPanel");
+    const syncTokenInput = document.getElementById("syncTokenInput");
+    const syncTokenSave = document.getElementById("syncTokenSave");
+    const syncTokenClear = document.getElementById("syncTokenClear");
     let currentFilter = "all";
     let currentGenre = "all";
     let pool = [];
+    let syncing = false; // 連打で同時に複数回PUTしてsha競合するのを防ぐための簡易ロック
 
     try {
       const res = await fetch("./pool.json", { cache: "no-store" });
@@ -323,6 +500,84 @@
       list.innerHTML = '<div class="empty">まだ投稿案がありません。GitHub Actionsの初回実行を待ってね。</div>';
       return;
     }
+
+    // プールに無いitemCodeは(古いエントリが溢れて消えた等で)もう表示されないので、
+    // done.jsonを肥大化させないよう都度この範囲に絞り込む。
+    function poolCodes() {
+      return new Set(pool.map((p) => p.itemCode));
+    }
+
+    function updateSyncStatus(state, detail) {
+      const messages = {
+        "no-token": "🔗 端末間同期: 未設定(設定するとこの端末以外にも反映される)",
+        syncing: "🔄 端末間同期: 送信中…",
+        synced: "✅ 端末間同期: 有効(最終送信OK)",
+        error: `⚠️ 端末間同期: エラー${detail ? `(${detail})` : ""}`,
+      };
+      syncStatusEl.textContent = messages[state] || messages["no-token"];
+    }
+
+    // ページ読み込み時: 他端末がdone.jsonに書き込んだ「投稿済み」を取り込む。
+    // (取り込みだけなのでトークン不要・API制限も消費しない)
+    async function mergeRemoteDoneOnLoad() {
+      const remoteList = await fetchDoneViaPages();
+      if (remoteList.length === 0) return;
+      const local = getDoneSet();
+      const codes = poolCodes();
+      const merged = new Set([...local, ...remoteList].filter((c) => codes.has(c)));
+      saveDoneSet(merged);
+    }
+    await mergeRemoteDoneOnLoad();
+
+    updateSyncStatus(getToken() ? "synced" : "no-token");
+    syncTokenInput.value = getToken();
+
+    // 「投稿済み/戻す」を押した1件だけをdone.jsonに反映する(sha取得→更新→リトライ1回)。
+    async function syncOneToggle(code, added) {
+      const token = getToken();
+      if (!token || syncing) return;
+      syncing = true;
+      updateSyncStatus("syncing");
+      const codes = poolCodes();
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const { list, sha } = await fetchDoneViaApi(token);
+            const set = new Set(list.filter((c) => codes.has(c)));
+            if (added) set.add(code);
+            else set.delete(code);
+            await pushDoneViaApi([...set], sha, token);
+            updateSyncStatus("synced");
+            return;
+          } catch (err) {
+            if (err.status === 409 && attempt === 0) continue; // sha競合 → 1回だけ取り直して再試行
+            throw err;
+          }
+        }
+      } catch (err) {
+        console.error("done.json同期エラー:", err);
+        updateSyncStatus("error", err.status === 401 ? "トークンが無効です" : (err.message || ""));
+      } finally {
+        syncing = false;
+      }
+    }
+
+    syncToggle.addEventListener("click", () => {
+      syncPanel.hidden = !syncPanel.hidden;
+    });
+
+    syncTokenSave.addEventListener("click", () => {
+      const token = syncTokenInput.value.trim();
+      saveToken(token);
+      updateSyncStatus(token ? "synced" : "no-token");
+      if (token) syncPanel.hidden = true;
+    });
+
+    syncTokenClear.addEventListener("click", () => {
+      saveToken("");
+      syncTokenInput.value = "";
+      updateSyncStatus("no-token");
+    });
 
     // プールに含まれるジャンルを動的に拾ってタブを作る(config.jsonの変更にも追従する)
     const genreLabels = [...new Set(pool.map((item) => item.genreLabel).filter(Boolean))];
@@ -425,11 +680,13 @@
         doneSet.add(code);
         saveDoneSet(doneSet);
         render();
+        syncOneToggle(code, true);
       } else if (btn.dataset.action === "undo") {
         const doneSet = getDoneSet();
         doneSet.delete(code);
         saveDoneSet(doneSet);
         render();
+        syncOneToggle(code, false);
       }
     });
 
