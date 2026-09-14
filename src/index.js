@@ -26,15 +26,14 @@ async function loadJson(filePath, fallback) {
 }
 
 const DEFAULT_CONFIG = {
-  genreId: "0",
-  genreLabel: "総合",
+  genres: [
+    { key: "general", genreId: "0", genreLabel: "総合", poolSize: 2, trendingPoolSize: 2 },
+  ],
   period: "realtime",
   historySize: 60,
-  poolSize: 2,
   referer: "https://x.com/",
   maxPoolDisplay: 20,
   trendingEnabled: true,
-  trendingPoolSize: 2,
   trendingRankJump: 5,
 };
 
@@ -42,58 +41,79 @@ async function main() {
   const config = await loadJson(configPath, DEFAULT_CONFIG);
   const history = await loadJson(historyPath, []);
   const existingPool = await loadJson(poolPath, []);
-  const previousSnapshot = await loadJson(snapshotPath, {});
+  const previousSnapshots = await loadJson(snapshotPath, {});
 
-  const rankingItems = await fetchRanking({
-    appId: process.env.RAKUTEN_APP_ID,
-    accessKey: process.env.RAKUTEN_ACCESS_KEY,
-    affiliateId: process.env.RAKUTEN_AFFILIATE_ID,
-    genreId: config.genreId,
-    period: config.period,
-    referer: config.referer,
-  });
-
-  // ① ランキング上位から、まだ提案していない商品をピック
-  const rankingPicks = pickFreshItems(rankingItems, history, config.poolSize ?? 2);
-
-  // ② 前回スナップショットと比較して、順位が急上昇した商品をピック(履歴で重複除外)
-  let trendingPicks = [];
-  if (config.trendingEnabled) {
-    const risers = detectRisers(rankingItems, previousSnapshot, {
-      minJump: config.trendingRankJump ?? 5,
-      maxResults: (config.trendingPoolSize ?? 2) + rankingPicks.length,
-    });
-    const alreadyPicked = new Set(rankingPicks.map((i) => i.itemCode));
-    trendingPicks = risers
-      .filter((i) => !history.includes(i.itemCode) && !alreadyPicked.has(i.itemCode))
-      .slice(0, config.trendingPoolSize ?? 2);
-  }
-
-  const dryRun = process.env.DRY_RUN === "true";
+  const genres = config.genres?.length ? config.genres : DEFAULT_CONFIG.genres;
   const geminiApiKey = process.env.GEMINI_API_KEY;
+  const dryRun = process.env.DRY_RUN === "true";
 
   // AIコメント生成はレート制限に配慮して1件ずつ順番に呼ぶ
-  async function buildEntry(item, source) {
+  async function buildEntry(item, source, genre) {
     const comment = await generateComment({ apiKey: geminiApiKey, item });
-    return buildPoolEntry(item, formatTweet(item, config.genreLabel, comment), source, comment);
+    return buildPoolEntry(item, formatTweet(item, genre.genreLabel, comment), source, comment, genre);
   }
 
-  const rankingEntries = [];
-  for (const item of rankingPicks) {
-    rankingEntries.push(await buildEntry(item, "ranking"));
-  }
-  const trendingEntries = [];
-  for (const item of trendingPicks) {
-    trendingEntries.push(await buildEntry(item, "trending"));
-  }
-  const newEntries = [...rankingEntries, ...trendingEntries];
+  const newEntries = [];
+  const updatedSnapshots = { ...previousSnapshots };
+  // 複数ジャンルにまたがって同じ商品を二重提案しないよう、ジャンルをまたいで履歴を共有する
+  const pickedCodes = new Set();
 
-  console.log(`----- ${newEntries.length}件の投稿案(ランキング${rankingEntries.length}・急上昇${trendingEntries.length}) -----`);
+  for (const genre of genres) {
+    let rankingItems;
+    try {
+      rankingItems = await fetchRanking({
+        appId: process.env.RAKUTEN_APP_ID,
+        accessKey: process.env.RAKUTEN_ACCESS_KEY,
+        affiliateId: process.env.RAKUTEN_AFFILIATE_ID,
+        genreId: genre.genreId,
+        period: config.period,
+        referer: config.referer,
+      });
+    } catch (err) {
+      // 1ジャンルの取得に失敗しても他のジャンルの処理は続行する
+      console.error(`[${genre.genreLabel}] ランキング取得に失敗しました:`, err.message || err);
+      continue;
+    }
+
+    const excludeCodes = [...history, ...pickedCodes];
+
+    // ① ランキング上位から、まだ提案していない商品をピック
+    const rankingPicks = pickFreshItems(rankingItems, excludeCodes, genre.poolSize ?? 2);
+    rankingPicks.forEach((item) => pickedCodes.add(item.itemCode));
+
+    // ② 前回スナップショットと比較して、順位が急上昇した商品をピック(履歴で重複除外)
+    let trendingPicks = [];
+    if (config.trendingEnabled) {
+      const previousSnapshot = previousSnapshots[genre.key] || {};
+      const risers = detectRisers(rankingItems, previousSnapshot, {
+        minJump: config.trendingRankJump ?? 5,
+        maxResults: (genre.trendingPoolSize ?? 2) + rankingPicks.length,
+      });
+      trendingPicks = risers
+        .filter((i) => !history.includes(i.itemCode) && !pickedCodes.has(i.itemCode))
+        .slice(0, genre.trendingPoolSize ?? 2);
+      trendingPicks.forEach((item) => pickedCodes.add(item.itemCode));
+    }
+
+    for (const item of rankingPicks) {
+      newEntries.push(await buildEntry(item, "ranking", genre));
+    }
+    for (const item of trendingPicks) {
+      newEntries.push(await buildEntry(item, "trending", genre));
+    }
+
+    updatedSnapshots[genre.key] = buildSnapshot(rankingItems);
+
+    const rankingCount = rankingPicks.length;
+    const trendingCount = trendingPicks.length;
+    console.log(`----- [${genre.genreLabel}] ${rankingCount + trendingCount}件の投稿案(ランキング${rankingCount}・急上昇${trendingCount}) -----`);
+  }
+
   for (const entry of newEntries) {
     const tags = [entry.source === "trending" ? "📈急上昇" : "🏆ランキング", entry.onSale ? `🔥${entry.saleLabel}` : null]
       .filter(Boolean)
       .join(" ");
-    console.log(`- [${entry.price}円] ${tags} ${entry.name.slice(0, 30)}...`);
+    console.log(`- [${entry.genreLabel}/${entry.price}円] ${tags} ${entry.name.slice(0, 30)}...`);
   }
 
   if (dryRun) {
@@ -101,7 +121,7 @@ async function main() {
     return;
   }
 
-  await writeFile(snapshotPath, JSON.stringify(buildSnapshot(rankingItems), null, 2) + "\n", "utf-8");
+  await writeFile(snapshotPath, JSON.stringify(updatedSnapshots, null, 2) + "\n", "utf-8");
 
   const updatedPool = mergePool(existingPool, newEntries, config.maxPoolDisplay ?? 20);
   await mkdir(path.dirname(poolPath), { recursive: true });

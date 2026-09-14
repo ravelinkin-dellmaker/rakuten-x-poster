@@ -1,12 +1,24 @@
 {
-  "genreId": "0",
-  "genreLabel": "総合",
+  "genres": [
+    {
+      "key": "general",
+      "genreId": "0",
+      "genreLabel": "総合",
+      "poolSize": 2,
+      "trendingPoolSize": 2
+    },
+    {
+      "key": "subculture",
+      "genreId": "101164",
+      "genreLabel": "サブカル",
+      "poolSize": 1,
+      "trendingPoolSize": 1
+    }
+  ],
   "period": "realtime",
   "historySize": 60,
-  "poolSize": 2,
   "referer": "https://x.com/",
   "maxPoolDisplay": 20,
   "trendingEnabled": true,
-  "trendingPoolSize": 2,
   "trendingRankJump": 5
 }

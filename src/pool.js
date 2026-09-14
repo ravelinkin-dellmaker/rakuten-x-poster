@@ -33,7 +33,7 @@ export function detectSale(item, now = new Date()) {
   return { onSale: labels.length > 0, saleLabel: labels.join(" / ") || null };
 }
 
-export function buildPoolEntry(item, tweetText, source = "ranking", comment = null) {
+export function buildPoolEntry(item, tweetText, source = "ranking", comment = null, genre = null) {
   const price = Number(item.itemPrice);
   const { onSale, saleLabel } = detectSale(item);
   return {
@@ -46,6 +46,8 @@ export function buildPoolEntry(item, tweetText, source = "ranking", comment = nu
     reviewCount: item.reviewCount ?? null,
     rank: item.rank ?? null,
     source, // "ranking" | "trending"
+    genreKey: genre?.key ?? null,
+    genreLabel: genre?.genreLabel ?? null,
     onSale,
     saleLabel,
     comment, // AIが生成した一言コメント(無い場合はnull)
