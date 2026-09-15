@@ -234,14 +234,20 @@
     background: #f1e6f7;
     color: #7c4a9c;
   }
+  .badge-popular {
+    background: #e2f3ea;
+    color: #2f8a5c;
+  }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .badge-trending { background: #1c2b3a; color: #7ab0e0; }
     :root:not([data-theme="light"]) .badge-sale { background: #3a2a18; color: #e0a15e; }
     :root:not([data-theme="light"]) .badge-genre { background: #2c1f36; color: #c99fe0; }
+    :root:not([data-theme="light"]) .badge-popular { background: #163326; color: #6fcf9b; }
   }
   :root[data-theme="dark"] .badge-trending { background: #1c2b3a; color: #7ab0e0; }
   :root[data-theme="dark"] .badge-sale { background: #3a2a18; color: #e0a15e; }
   :root[data-theme="dark"] .badge-genre { background: #2c1f36; color: #c99fe0; }
+  :root[data-theme="dark"] .badge-popular { background: #163326; color: #6fcf9b; }
   .tabs-genre .tab.active {
     background: #7c4a9c;
     border-color: #7c4a9c;
@@ -319,6 +325,7 @@
   <button class="tab" data-filter="ranking">🏆 ランキング</button>
   <button class="tab" data-filter="sale">🔥 セール</button>
   <button class="tab" data-filter="trending">📈 急上昇</button>
+  <button class="tab" data-filter="popular">💬 口コミ人気</button>
 </div>
 
 <div class="tabs tabs-genre" id="genreTabs" hidden></div>
@@ -476,6 +483,11 @@
     return `⭐${rounded}`;
   }
 
+  const SOURCE_BADGES = {
+    trending: '<span class="badge badge-trending">📈 急上昇</span>',
+    popular: '<span class="badge badge-popular">💬 口コミ人気</span>',
+  };
+
   async function main() {
     const list = document.getElementById("list");
     const showDoneCheckbox = document.getElementById("showDone");
@@ -619,9 +631,7 @@
           ? `${renderStars(item.reviewAverage)} (${item.reviewCount ?? 0}件)`
           : "";
         const badges = [
-          item.source === "trending"
-            ? '<span class="badge badge-trending">📈 急上昇</span>'
-            : '<span class="badge badge-ranking">🏆 ランキング</span>',
+          SOURCE_BADGES[item.source] || '<span class="badge badge-ranking">🏆 ランキング</span>',
           item.onSale ? `<span class="badge badge-sale">🔥 ${escapeHtml(item.saleLabel || "セール中")}</span>` : "",
           item.genreLabel && genreLabels.length > 1
             ? `<span class="badge badge-genre">${escapeHtml(item.genreLabel)}</span>`

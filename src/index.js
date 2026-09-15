@@ -7,6 +7,8 @@ import { fetchRanking, pickFreshItems } from "./rakuten.js";
 import { formatTweet } from "./formatTweet.js";
 import { buildPoolEntry, mergePool } from "./pool.js";
 import { detectRisers, buildSnapshot } from "./trending.js";
+import { detectPopular } from "./popular.js";
+import { detectCardBrandLabel } from "./cardBrand.js";
 import { generateComment } from "./comment.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +37,9 @@ const DEFAULT_CONFIG = {
   maxPoolDisplay: 20,
   trendingEnabled: true,
   trendingRankJump: 5,
+  popularEnabled: true,
+  popularMinReviewCount: 50,
+  popularMinReviewAverage: 4.0,
 };
 
 async function main() {
@@ -50,7 +55,19 @@ async function main() {
   // AIコメント生成はレート制限に配慮して1件ずつ順番に呼ぶ
   async function buildEntry(item, source, genre) {
     const comment = await generateComment({ apiKey: geminiApiKey, item });
-    return buildPoolEntry(item, formatTweet(item, genre.genreLabel, comment), source, comment, genre);
+    // トレカジャンルなど detectBrand: true な場合、商品名からポケカ/ワンピカードを判別し、
+    // ジャンルラベル(投稿文・バッジ)をより具体的なものに差し替える
+    const genreLabel = genre.detectBrand
+      ? detectCardBrandLabel(item.itemName, genre.genreLabel)
+      : genre.genreLabel;
+    const effectiveGenre = { ...genre, genreLabel };
+    return buildPoolEntry(
+      item,
+      formatTweet(item, genreLabel, comment, source),
+      source,
+      comment,
+      effectiveGenre
+    );
   }
 
   const newEntries = [];
@@ -95,22 +112,42 @@ async function main() {
       trendingPicks.forEach((item) => pickedCodes.add(item.itemCode));
     }
 
+    // ③ 順位に関わらず、口コミ(レビュー)件数が多く評価も高い=購入頻度が高いと
+    //    推測できる商品をピック(①②で選んだものは除外)
+    let popularPicks = [];
+    if (config.popularEnabled ?? true) {
+      const candidates = rankingItems.filter(
+        (i) => !history.includes(i.itemCode) && !pickedCodes.has(i.itemCode)
+      );
+      popularPicks = detectPopular(candidates, {
+        minReviewCount: config.popularMinReviewCount ?? 50,
+        minReviewAverage: config.popularMinReviewAverage ?? 4.0,
+        maxResults: genre.popularPoolSize ?? 1,
+      });
+      popularPicks.forEach((item) => pickedCodes.add(item.itemCode));
+    }
+
     for (const item of rankingPicks) {
       newEntries.push(await buildEntry(item, "ranking", genre));
     }
     for (const item of trendingPicks) {
       newEntries.push(await buildEntry(item, "trending", genre));
     }
+    for (const item of popularPicks) {
+      newEntries.push(await buildEntry(item, "popular", genre));
+    }
 
     updatedSnapshots[genre.key] = buildSnapshot(rankingItems);
 
     const rankingCount = rankingPicks.length;
     const trendingCount = trendingPicks.length;
-    console.log(`----- [${genre.genreLabel}] ${rankingCount + trendingCount}件の投稿案(ランキング${rankingCount}・急上昇${trendingCount}) -----`);
+    const popularCount = popularPicks.length;
+    console.log(`----- [${genre.genreLabel}] ${rankingCount + trendingCount + popularCount}件の投稿案(ランキング${rankingCount}・急上昇${trendingCount}・口コミ人気${popularCount}) -----`);
   }
 
+  const sourceTag = { trending: "📈急上昇", popular: "💬口コミ人気" };
   for (const entry of newEntries) {
-    const tags = [entry.source === "trending" ? "📈急上昇" : "🏆ランキング", entry.onSale ? `🔥${entry.saleLabel}` : null]
+    const tags = [sourceTag[entry.source] || "🏆ランキング", entry.onSale ? `🔥${entry.saleLabel}` : null]
       .filter(Boolean)
       .join(" ");
     console.log(`- [${entry.genreLabel}/${entry.price}円] ${tags} ${entry.name.slice(0, 30)}...`);

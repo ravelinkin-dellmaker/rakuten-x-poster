@@ -5,14 +5,25 @@
       "genreId": "0",
       "genreLabel": "総合",
       "poolSize": 2,
-      "trendingPoolSize": 2
+      "trendingPoolSize": 2,
+      "popularPoolSize": 1
     },
     {
       "key": "subculture",
       "genreId": "101164",
       "genreLabel": "サブカル",
       "poolSize": 1,
-      "trendingPoolSize": 1
+      "trendingPoolSize": 1,
+      "popularPoolSize": 1
+    },
+    {
+      "key": "cards",
+      "genreId": "411383",
+      "genreLabel": "トレカ",
+      "poolSize": 1,
+      "trendingPoolSize": 1,
+      "popularPoolSize": 1,
+      "detectBrand": true
     }
   ],
   "period": "realtime",
@@ -20,5 +31,8 @@
   "referer": "https://x.com/",
   "maxPoolDisplay": 20,
   "trendingEnabled": true,
-  "trendingRankJump": 5
+  "trendingRankJump": 5,
+  "popularEnabled": true,
+  "popularMinReviewCount": 50,
+  "popularMinReviewAverage": 4.0
 }

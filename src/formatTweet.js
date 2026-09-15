@@ -49,15 +49,21 @@ function truncateToWeight(text, maxWeight) {
   return chars.slice(0, cutIndex).join("") + "…";
 }
 
-export function formatTweet(item, genreLabel, comment) {
+export function formatTweet(item, genreLabel, comment, source = "ranking") {
   const price = Number(item.itemPrice).toLocaleString("ja-JP");
   const url = item.affiliateUrl || item.itemUrl;
   const genrePrefix = genreLabel ? `${genreLabel}の` : "";
   const genreHashtag = genreLabel ? ` #${genreLabel.replace(/\s/g, "")}` : "";
 
-  const header = `🏆 ${genrePrefix}楽天人気ランキング\n\n`;
+  // 口コミ件数の多さで選んだ商品は、順位起点の「ランキング」ではなく
+  // 「口コミで人気」であることが伝わるよう見出しを変える
+  const header =
+    source === "popular"
+      ? `💬 ${genrePrefix}口コミで人気\n\n`
+      : `🏆 ${genrePrefix}楽天人気ランキング\n\n`;
   const priceLine = `\n\n💰 ${price}円\n`;
-  const tagLine = `\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
+  const extraHashtag = source === "popular" ? " #口コミ人気" : "";
+  const tagLine = `\n\n#PR #楽天 #楽天ランキング${genreHashtag}${extraHashtag}`;
 
   const reserved =
     weightedLength(header) + weightedLength(priceLine) + URL_WEIGHT + weightedLength(tagLine);
