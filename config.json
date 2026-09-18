@@ -35,5 +35,20 @@
   "popularEnabled": true,
   "popularMinReviewCount": 50,
   "popularMinReviewAverage": 4.0,
-  "targetTotalPicks": 10
+  "targetTotalPicks": 10,
+  "infoPosts": {
+    "enabled": true,
+    "maxPerDay": 1,
+    "campaigns": [
+      {
+        "key": "5and0",
+        "label": "5と0のつく日",
+        "emoji": "🐬",
+        "text": "本日は楽天市場の「5と0のつく日」!楽天カードでのお買い物がポイントアップ対象です。現在の倍率・条件は公式ページでチェックしてね",
+        "url": "https://event.rakuten.co.jp/5and0/",
+        "hashtags": ["5と0のつく日", "ポイ活"],
+        "daysOfMonth": [5, 10, 15, 20, 25, 30]
+      }
+    ]
+  }
 }

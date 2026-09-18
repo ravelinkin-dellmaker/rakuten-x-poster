@@ -3,9 +3,9 @@
 
 // Xの上限は280だが、実際にXの投稿画面へ渡すと収まりきらないケースがあったため
 // 安全マージンとして3文字分低く見積もる
-const TWEET_MAX = 277;
+export const TWEET_MAX = 277;
 // Xは投稿時にURLを自動でt.co形式に短縮して数えるため、実際の文字数ではなくこの重みで計算する
-const URL_WEIGHT = 23;
+export const URL_WEIGHT = 23;
 
 // Xの文字数カウントでは、全角・CJK文字(日本語含む)は2文字分として数えられる
 const WIDE_RANGES = [
@@ -26,7 +26,7 @@ function isWide(codePoint) {
   return WIDE_RANGES.some(([lo, hi]) => codePoint >= lo && codePoint <= hi);
 }
 
-function weightedLength(text) {
+export function weightedLength(text) {
   let total = 0;
   for (const ch of text) {
     total += isWide(ch.codePointAt(0)) ? 2 : 1;
@@ -34,7 +34,7 @@ function weightedLength(text) {
   return total;
 }
 
-function truncateToWeight(text, maxWeight) {
+export function truncateToWeight(text, maxWeight) {
   const chars = [...text];
   if (weightedLength(text) <= maxWeight) return text;
 

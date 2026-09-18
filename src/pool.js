@@ -57,6 +57,31 @@ export function buildPoolEntry(item, tweetText, source = "ranking", comment = nu
 }
 
 /**
+ * 特定商品に紐づかない「お得情報」投稿案をpool.json用のエントリ形式にする。
+ * アフィリエイトリンクではないため price/rank/レビュー等は全てnullになる。
+ */
+export function buildInfoEntry(itemCode, campaign, tweetText) {
+  return {
+    itemCode,
+    name: campaign.label,
+    price: null,
+    url: campaign.url || null,
+    image: campaign.image || null,
+    reviewAverage: null,
+    reviewCount: null,
+    rank: null,
+    source: "info",
+    genreKey: null,
+    genreLabel: null,
+    onSale: false,
+    saleLabel: null,
+    comment: null,
+    tweetText,
+    addedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * 既存プールに新しいエントリをマージし、maxSize件まで(新しい順)に切り詰める。
  * 同じ itemCode が既にあれば新しい方で上書きしない(先に追加された方の addedAt を保持)。
  */

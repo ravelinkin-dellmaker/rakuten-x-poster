@@ -5,10 +5,11 @@ import path from "node:path";
 
 import { fetchRanking, pickFreshItems } from "./rakuten.js";
 import { formatTweet } from "./formatTweet.js";
-import { buildPoolEntry, mergePool } from "./pool.js";
+import { buildPoolEntry, buildInfoEntry, mergePool } from "./pool.js";
 import { detectRisers, buildSnapshot } from "./trending.js";
 import { detectPopular } from "./popular.js";
 import { detectCardBrandLabel } from "./cardBrand.js";
+import { detectTodayCampaigns, buildInfoItemCode, formatInfoTweet } from "./infoPosts.js";
 import { generateComment } from "./comment.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +42,7 @@ const DEFAULT_CONFIG = {
   popularMinReviewCount: 50,
   popularMinReviewAverage: 4.0,
   targetTotalPicks: 10,
+  infoPosts: { enabled: false, maxPerDay: 1, campaigns: [] },
 };
 
 async function main() {
@@ -174,12 +176,32 @@ async function main() {
     }
   }
 
-  const sourceTag = { trending: "📈急上昇", popular: "💬口コミ人気" };
+  // ④ アフィリエイトとは無関係な「楽天のお得情報」投稿(特定商品に紐づかない、
+  //    インプレッション・閲覧数アップ目的の情報発信)。targetTotalPicksの枠外で追加する
+  const infoConfig = config.infoPosts;
+  if (infoConfig?.enabled) {
+    const todayCampaigns = detectTodayCampaigns(infoConfig.campaigns || []);
+    const maxPerDay = infoConfig.maxPerDay ?? 1;
+    let addedInfoCount = 0;
+    for (const campaign of todayCampaigns.slice(0, maxPerDay)) {
+      const itemCode = buildInfoItemCode(campaign);
+      if (history.includes(itemCode) || pickedCodes.has(itemCode)) continue;
+      pickedCodes.add(itemCode);
+      newEntries.push(buildInfoEntry(itemCode, campaign, formatInfoTweet(campaign)));
+      addedInfoCount++;
+    }
+    if (todayCampaigns.length > 0) {
+      console.log(`----- 💡お得情報: 本日対象${todayCampaigns.length}件中${addedInfoCount}件を追加 -----`);
+    }
+  }
+
+  const sourceTag = { trending: "📈急上昇", popular: "💬口コミ人気", info: "💡お得情報" };
   for (const entry of newEntries) {
     const tags = [sourceTag[entry.source] || "🏆ランキング", entry.onSale ? `🔥${entry.saleLabel}` : null]
       .filter(Boolean)
       .join(" ");
-    console.log(`- [${entry.genreLabel}/${entry.price}円] ${tags} ${entry.name.slice(0, 30)}...`);
+    const label = entry.source === "info" ? "お得情報" : `${entry.genreLabel}/${entry.price}円`;
+    console.log(`- [${label}] ${tags} ${entry.name.slice(0, 30)}...`);
   }
 
   if (dryRun) {
