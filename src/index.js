@@ -40,6 +40,7 @@ const DEFAULT_CONFIG = {
   popularEnabled: true,
   popularMinReviewCount: 50,
   popularMinReviewAverage: 4.0,
+  targetTotalPicks: 10,
 };
 
 async function main() {
@@ -74,6 +75,8 @@ async function main() {
   const updatedSnapshots = { ...previousSnapshots };
   // 複数ジャンルにまたがって同じ商品を二重提案しないよう、ジャンルをまたいで履歴を共有する
   const pickedCodes = new Set();
+  // 後段の「最低件数を保証する補充」で使うため、ジャンルごとの取得結果を取っておく
+  const rankingItemsByGenre = {};
 
   for (const genre of genres) {
     let rankingItems;
@@ -92,6 +95,7 @@ async function main() {
       continue;
     }
 
+    rankingItemsByGenre[genre.key] = rankingItems;
     const excludeCodes = [...history, ...pickedCodes];
 
     // ① ランキング上位から、まだ提案していない商品をピック
@@ -143,6 +147,31 @@ async function main() {
     const trendingCount = trendingPicks.length;
     const popularCount = popularPicks.length;
     console.log(`----- [${genre.genreLabel}] ${rankingCount + trendingCount + popularCount}件の投稿案(ランキング${rankingCount}・急上昇${trendingCount}・口コミ人気${popularCount}) -----`);
+  }
+
+  // 急上昇・口コミ人気が0件だった日でも、合計件数が寂しくならないよう
+  // 目標件数(targetTotalPicks)に届くまでランキング上位から順番に補充する
+  const targetTotalPicks = config.targetTotalPicks ?? 10;
+  let deficit = targetTotalPicks - newEntries.length;
+  if (deficit > 0) {
+    let addedInPass = true;
+    while (deficit > 0 && addedInPass) {
+      addedInPass = false;
+      for (const genre of genres) {
+        if (deficit <= 0) break;
+        const items = rankingItemsByGenre[genre.key];
+        if (!items) continue;
+        const next = items.find((item) => !history.includes(item.itemCode) && !pickedCodes.has(item.itemCode));
+        if (!next) continue;
+        pickedCodes.add(next.itemCode);
+        newEntries.push(await buildEntry(next, "ranking", genre));
+        deficit--;
+        addedInPass = true;
+      }
+    }
+    if (deficit > 0) {
+      console.log(`⚠️ 目標の${targetTotalPicks}件に届きませんでした(あと${deficit}件。全ジャンルで新規候補が尽きた可能性)`);
+    }
   }
 
   const sourceTag = { trending: "📈急上昇", popular: "💬口コミ人気" };

@@ -93,7 +93,8 @@ npm start
   "trendingRankJump": 5,
   "popularEnabled": true,
   "popularMinReviewCount": 50,
-  "popularMinReviewAverage": 4.0
+  "popularMinReviewAverage": 4.0,
+  "targetTotalPicks": 10
 }
 ```
 
@@ -116,6 +117,7 @@ npm start
 - `trendingRankJump`: 前回スナップショットからこの順位数以上上がっていたら「急上昇」とみなす(新規ランクインは常に急上昇扱い。全ジャンル共通)。
 - `popularEnabled`: 「口コミ人気」検知を有効にするか(全ジャンル共通のON/OFF)。
 - `popularMinReviewCount` / `popularMinReviewAverage`: 「口コミ人気」として拾うレビュー件数・評価の下限(全ジャンル共通。詳細は後述)。
+- `targetTotalPicks`: **1回の実行で必ずこの件数(既定10件)は投稿案を用意する。** 急上昇・口コミ人気が少ない(0件の)日でも、全ジャンルの合計がこの件数に届くまで、ランキング上位から順番に(ジャンルを1件ずつ回しながら)自動で補充する。全ジャンル合わせても新規候補が尽きた場合はそこで諦め、ログに警告を出す。
 
 Webアプリ側は、プール内に2種類以上のジャンルが混在すると自動的に「ジャンル」タブとバッジを表示する(1ジャンルのみの構成なら今まで通り表示されない)。
 
@@ -186,7 +188,7 @@ rakuten-x-poster/
 ├── src/
 │   ├── index.js             # エントリーポイント
 │   ├── rakuten.js           # 楽天ランキングAPI呼び出し(Referer/Origin対応)
-│   ├── formatTweet.js       # 投稿文の組み立て
+│   ├── formatTweet.js       # 投稿文の組み立て(Xの280文字上限に対し3文字分の安全マージンを確保)
 │   ├── pool.js              # pool.jsonのマージ・整形、セール判定
 │   ├── trending.js          # 順位急上昇の検知ロジック
 │   ├── popular.js           # 口コミ(レビュー)件数・評価による人気検知ロジック

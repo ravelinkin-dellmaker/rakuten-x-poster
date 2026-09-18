@@ -34,5 +34,6 @@
   "trendingRankJump": 5,
   "popularEnabled": true,
   "popularMinReviewCount": 50,
-  "popularMinReviewAverage": 4.0
+  "popularMinReviewAverage": 4.0,
+  "targetTotalPicks": 10
 }
