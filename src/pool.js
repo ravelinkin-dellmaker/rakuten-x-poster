@@ -72,13 +72,14 @@ export function buildPoolEntry(item, tweetText, source = "ranking", comment = nu
 
 /**
  * 既存プールに新しいエントリをマージし、maxSize件まで(新しい順)に切り詰める。
- * 同じ itemCode が既にあれば新しい方で上書きしない(先に追加された方の addedAt を保持)。
+ * 同じ itemCode が既にあれば古い方を取り除いて新しい方(新しい投稿文・addedAt)に
+ * 置き換える(アップサート)。前日までと商品が被っても、常に新規追加分だけ
+ * プール末尾に積み上がるようにするための挙動(重複除外だと、既にプールに残っている
+ * 間は新エントリが弾かれて件数が増えない問題があった)。
  */
 export function mergePool(existingPool, newEntries, maxSize) {
-  const existingCodes = new Set(existingPool.map((e) => e.itemCode));
-  const merged = [
-    ...existingPool,
-    ...newEntries.filter((e) => !existingCodes.has(e.itemCode)),
-  ];
+  const newCodes = new Set(newEntries.map((e) => e.itemCode));
+  const remaining = existingPool.filter((e) => !newCodes.has(e.itemCode));
+  const merged = [...remaining, ...newEntries];
   return merged.slice(-maxSize);
 }

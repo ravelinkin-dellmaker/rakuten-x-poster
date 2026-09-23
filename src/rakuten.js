@@ -110,11 +110,15 @@ export async function searchItems({
 }
 
 /**
- * ランキングの中から、まだ提案していない商品を最大 poolSize 件返す(プール用)。
- * 未提案の商品が足りない場合は、そのまま件数が少ないまま返す(無理に重複させない)。
+ * ランキングの中から、まだ提案していない商品を優先して最大 poolSize 件返す(プール用)。
+ * 未提案の商品だけでは poolSize に届かない場合、件数を優先して
+ * 提案済み(=前日までと被る)商品でも上位から埋め合わせる。
  */
 export function pickFreshItems(items, excludeCodes = [], poolSize = 1) {
   const fresh = items.filter((item) => !excludeCodes.includes(item.itemCode));
-  const pool = fresh.length > 0 ? fresh : items; // 全件提案済みなら1位から出し直す
-  return pool.slice(0, poolSize);
+  if (fresh.length >= poolSize) return fresh.slice(0, poolSize);
+
+  const freshCodes = new Set(fresh.map((item) => item.itemCode));
+  const filler = items.filter((item) => !freshCodes.has(item.itemCode));
+  return [...fresh, ...filler].slice(0, poolSize);
 }
