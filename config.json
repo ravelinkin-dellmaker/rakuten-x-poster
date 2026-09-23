@@ -8,5 +8,16 @@
   "maxPoolDisplay": 20,
   "trendingEnabled": true,
   "trendingPoolSize": 2,
-  "trendingRankJump": 5
+  "trendingRankJump": 5,
+  "tcg": {
+    "enabled": true,
+    "genreLabel": "トレカ新着",
+    "poolSize": 2,
+    "keywords": [
+      "ポケモンカード 予約",
+      "ワンピースカード 予約",
+      "遊戯王カード 予約",
+      "ポケモンカード 新弾"
+    ]
+  }
 }
