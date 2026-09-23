@@ -157,6 +157,13 @@
     background: #000;
     color: #fff;
   }
+  .btn-room {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-room.copied {
+    background: #4a7c4e;
+  }
   .btn-done {
     background: transparent;
     border: 1px solid var(--border);
@@ -242,7 +249,7 @@
 <header>
   <div>
     <h1>🏆 楽天おすすめ投稿ボード</h1>
-    <div class="sub">「Xで開く」で投稿画面に文章が入った状態で開く → 内容確認して投稿 → 「投稿済み」を押してね</div>
+    <div class="sub">𝕏はワンタップで投稿画面が開くよ。ROOMは自動入力ができないので「🛋️ ROOM用にコピー」→ROOMアプリの投稿画面にURLを貼り付けてね → 終わったら「投稿済み」を押してね(スマホ・PC間で共有されるよ)</div>
   </div>
   <a class="btn-dashboard" href="https://affiliate.rakuten.co.jp/report/" target="_blank" rel="noopener">📊 成果を見る</a>
 </header>
@@ -265,8 +272,10 @@
 <script>
 (function () {
   const DONE_KEY = "rakuten-x-poster:done";
+  // 「投稿済み」状態をスマホ・PCなど複数端末で共有するための小さなAPI(Cloudflare Workers + KV)。
+  const DONE_API = "https://rakuten-x-poster-done-api.dellmaker.workers.dev/done";
 
-  function getDoneSet() {
+  function getLocalDoneSet() {
     try {
       return new Set(JSON.parse(localStorage.getItem(DONE_KEY) || "[]"));
     } catch {
@@ -274,12 +283,40 @@
     }
   }
 
-  function saveDoneSet(set) {
+  function saveLocalDoneSet(set) {
     try {
       localStorage.setItem(DONE_KEY, JSON.stringify([...set]));
     } catch {
       // localStorageが使えない環境では単に永続化を諦める
     }
+  }
+
+  // 起動時にサーバーから最新の「投稿済み」状態を取得する。
+  // サーバーに繋がらない場合(オフライン等)は、端末内に残っている記録で代用する。
+  async function loadDoneSet() {
+    try {
+      const res = await fetch(DONE_API, { cache: "no-store" });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const list = await res.json();
+      const set = new Set(list);
+      saveLocalDoneSet(set); // 次回オフライン時のためにローカルにもキャッシュ
+      return set;
+    } catch (e) {
+      console.warn("投稿済み状態をサーバーから取得できなかったので、この端末の記録を使うよ", e);
+      return getLocalDoneSet();
+    }
+  }
+
+  // 「投稿済みにする/戻す」操作をサーバーに送る(失敗してもこの端末の表示は変わらない。
+  // 単にサーバーへの反映=他端末への共有が次回まで持ち越されるだけ)。
+  function syncDone(itemCode, action) {
+    fetch(DONE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemCode, action }),
+    }).catch((e) => {
+      console.warn("サーバーへの同期に失敗した(この端末内では反映済み)", e);
+    });
   }
 
   function escapeHtml(str) {
@@ -294,12 +331,21 @@
     return `⭐${rounded}`;
   }
 
+  // ROOM用コピー文言。ROOMはXと違い280字制限もハッシュタグ文化も無いので、
+  // 一言コメント(無ければ商品名)+ステマ規制対応の#PR+商品URLのシンプルな形にする。
+  function buildRoomText(item) {
+    const body = item.comment || item.name;
+    const url = item.itemUrl || item.url;
+    return `${body} #PR\n${url}`;
+  }
+
   async function main() {
     const list = document.getElementById("list");
     const showDoneCheckbox = document.getElementById("showDone");
     const tabs = document.getElementById("tabs");
     let currentFilter = "all";
     let pool = [];
+    let doneSet = new Set();
 
     try {
       const res = await fetch("./pool.json", { cache: "no-store" });
@@ -310,8 +356,9 @@
       return;
     }
 
+    doneSet = await loadDoneSet();
+
     function render() {
-      const doneSet = getDoneSet();
       const showDone = showDoneCheckbox.checked;
       const visible = pool
         .slice()
@@ -357,6 +404,7 @@
                 <a href="https://x.com/intent/post?text=${encodeURIComponent(item.tweetText)}" target="_blank" rel="noopener">
                   <button type="button" class="btn-x">𝕏 で開く</button>
                 </a>
+                <button class="btn-room" data-action="room">🛋️ ROOM用にコピー</button>
                 <button class="btn-copy" data-action="copy">📋 コピー</button>
                 <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">
                   <button type="button" class="btn-done" style="background:transparent;">🔗 リンクを開く</button>
@@ -390,16 +438,31 @@
         }).catch(() => {
           alert(entry.tweetText);
         });
+      } else if (btn.dataset.action === "room") {
+        const roomText = buildRoomText(entry);
+        // window.openはクリックの同期処理内で呼ぶ(コピー完了後の非同期コールバック内だと
+        // iOS Safari等でポップアップブロックされて新規タブが開かないため)
+        window.open("https://room.rakuten.co.jp/", "_blank", "noopener");
+        navigator.clipboard.writeText(roomText).then(() => {
+          btn.textContent = "✅ コピー済み";
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.textContent = "🛋️ ROOM用にコピー";
+            btn.classList.remove("copied");
+          }, 1500);
+        }).catch(() => {
+          alert(roomText);
+        });
       } else if (btn.dataset.action === "done") {
-        const doneSet = getDoneSet();
         doneSet.add(code);
-        saveDoneSet(doneSet);
+        saveLocalDoneSet(doneSet);
         render();
+        syncDone(code, "done");
       } else if (btn.dataset.action === "undo") {
-        const doneSet = getDoneSet();
         doneSet.delete(code);
-        saveDoneSet(doneSet);
+        saveLocalDoneSet(doneSet);
         render();
+        syncDone(code, "undo");
       }
     });
 

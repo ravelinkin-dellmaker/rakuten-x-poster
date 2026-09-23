@@ -41,6 +41,9 @@ export function buildPoolEntry(item, tweetText, source = "ranking", comment = nu
     name: item.itemName,
     price: Number.isFinite(price) ? price : null,
     url: item.affiliateUrl || item.itemUrl,
+    // 楽天ROOM投稿用。ROOMは投稿者自身への報酬がROOM側の仕組みで発生するため、
+    // アフィリエイトリンクではなく素の商品ページURLを使う。
+    itemUrl: item.itemUrl,
     image: item.mediumImageUrls?.[0]?.imageUrl || null,
     reviewAverage: item.reviewAverage ? Number(item.reviewAverage) : null,
     reviewCount: item.reviewCount ?? null,
