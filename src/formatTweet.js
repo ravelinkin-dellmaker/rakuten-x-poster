@@ -65,11 +65,17 @@ function fallbackBody(genreLabel) {
 export function formatTweet(item, genreLabel, comment) {
   const url = item.affiliateUrl || item.itemUrl;
   const genreHashtag = genreLabel ? ` #${genreLabel.replace(/\s/g, "")}` : "";
-  const tagLine = `\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
+  let tagLine = `\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
 
   const body = comment || fallbackBody(genreLabel);
 
-  const reserved = URL_WEIGHT + weightedLength(tagLine) + weightedLength("\n\n");
+  let reserved = URL_WEIGHT + weightedLength(tagLine) + weightedLength("\n\n");
+  // genreLabelが極端に長い場合の保険。#PRはステマ規制対応で必須なので、
+  // 削るならジャンルのハッシュタグ側から落として本文が最低限の長さを確保できるようにする。
+  if (TWEET_MAX - reserved < 10) {
+    tagLine = `\n\n#PR #楽天 #楽天ランキング`;
+    reserved = URL_WEIGHT + weightedLength(tagLine) + weightedLength("\n\n");
+  }
   const bodyBudget = Math.max(TWEET_MAX - reserved, 10);
   const truncatedBody = truncateToWeight(body, bodyBudget);
 

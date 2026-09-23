@@ -33,6 +33,19 @@ export function detectSale(item, now = new Date()) {
   return { onSale: labels.length > 0, saleLabel: labels.join(" / ") || null };
 }
 
+// affiliateId付きでAPIを叩くと、item.itemUrl自体が
+// "https://hb.afl.rakuten.co.jp/hgc/xxx/?pc=<エンコードされた素URL>&m=...&rafcid=..." という
+// アフィリエイト中間リンクで返ってくる(ランキングAPI・商品検索API共通)。
+// ROOM投稿用には素の商品ページURLが必要なので、pcパラメータから本来のURLを取り出す。
+function extractPlainUrl(url) {
+  try {
+    const pc = new URL(url).searchParams.get("pc");
+    return pc || url;
+  } catch {
+    return url;
+  }
+}
+
 export function buildPoolEntry(item, tweetText, source = "ranking", comment = null) {
   const price = Number(item.itemPrice);
   const { onSale, saleLabel } = detectSale(item);
@@ -43,7 +56,7 @@ export function buildPoolEntry(item, tweetText, source = "ranking", comment = nu
     url: item.affiliateUrl || item.itemUrl,
     // 楽天ROOM投稿用。ROOMは投稿者自身への報酬がROOM側の仕組みで発生するため、
     // アフィリエイトリンクではなく素の商品ページURLを使う。
-    itemUrl: item.itemUrl,
+    itemUrl: extractPlainUrl(item.itemUrl),
     image: item.mediumImageUrls?.[0]?.imageUrl || null,
     reviewAverage: item.reviewAverage ? Number(item.reviewAverage) : null,
     reviewCount: item.reviewCount ?? null,
