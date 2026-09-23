@@ -10,7 +10,7 @@
   "trendingPoolSize": 2,
   "trendingRankJump": 5,
   "tcg": {
-    "enabled": true,
+    "enabled": false,
     "genreLabel": "トレカ新着",
     "poolSize": 2,
     "keywords": [

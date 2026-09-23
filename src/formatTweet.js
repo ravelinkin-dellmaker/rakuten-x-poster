@@ -56,10 +56,24 @@ function truncateToWeight(text, maxWeight) {
 
 // AIコメント(おすすめ理由)が無い場合の最低限のフォールバック文言。
 // 商品名は使わない方針のため、ジャンル名ベースの簡潔な一言にする。
-function fallbackBody(genreLabel) {
-  return genreLabel
-    ? `楽天の${genreLabel}ランキングで人気の一品を見つけたよ。気になる人はチェックしてみて。`
-    : "楽天で人気の商品を見つけたよ。気になる人はチェックしてみて。";
+// AI生成に失敗した時に毎回同じ文言だと単調になるので、複数パターンから
+// ランダムに選ぶ(itemCodeベースで決定的に選ぶことで、再実行時にも同じ商品には
+// 同じ文言が付くようにしている)。
+const FALLBACK_TEMPLATES = [
+  (g) => `楽天の${g}ランキングで見つけた人気の一品。気になる人はチェックしてみて。`,
+  (g) => `${g}ランキング上位に入ってる注目商品だよ。よかったら覗いてみて。`,
+  (g) => `楽天で今売れてるアイテムを見つけたよ。${g}ランキングでも人気。`,
+  (g) => `${g}で評価の高い商品をピックアップ。気になった人はどうぞ。`,
+  (g) => `楽天の${g}ランキングから、これは気になる一品を紹介するよ。`,
+];
+
+function fallbackBody(genreLabel, itemCode) {
+  const g = genreLabel || "楽天";
+  // itemCodeの文字コード合計を使ったシンプルなハッシュで、商品ごとに固定のパターンを選ぶ
+  let hash = 0;
+  for (const ch of String(itemCode || "")) hash = (hash + ch.codePointAt(0)) % 997;
+  const template = FALLBACK_TEMPLATES[hash % FALLBACK_TEMPLATES.length];
+  return template(g);
 }
 
 export function formatTweet(item, genreLabel, comment) {
@@ -67,7 +81,7 @@ export function formatTweet(item, genreLabel, comment) {
   const genreHashtag = genreLabel ? ` #${genreLabel.replace(/\s/g, "")}` : "";
   let tagLine = `\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
 
-  const body = comment || fallbackBody(genreLabel);
+  const body = comment || fallbackBody(genreLabel, item.itemCode);
 
   let reserved = URL_WEIGHT + weightedLength(tagLine) + weightedLength("\n\n");
   // genreLabelが極端に長い場合の保険。#PRはステマ規制対応で必須なので、
