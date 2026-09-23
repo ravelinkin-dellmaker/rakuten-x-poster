@@ -1,5 +1,6 @@
 // 楽天の商品情報からX投稿本文を組み立てるモジュール
 // ステマ規制(景品表示法)対応のため「#PR」を必ず含める
+// 方針: 商品名をそのまま貼るのではなく「おすすめ理由(AIコメント)+リンク」のシンプルな構成にする
 
 const TWEET_MAX = 280;
 // Xは投稿時にURLを自動でt.co形式に短縮して数えるため、実際の文字数ではなくこの重みで計算する
@@ -21,6 +22,10 @@ const WIDE_RANGES = [
 ];
 
 function isWide(codePoint) {
+  // BMP外(サロゲートペアになる)の文字はほぼ全て絵文字で、Xでは2文字分として数えられる。
+  // 以前はこれを見落としていて、ヘッダーの🏆・💰などが1文字扱いになり
+  // 末尾のハッシュタグ部分が数文字オーバーする原因になっていた。
+  if (codePoint >= 0x10000) return true;
   return WIDE_RANGES.some(([lo, hi]) => codePoint >= lo && codePoint <= hi);
 }
 
@@ -49,25 +54,24 @@ function truncateToWeight(text, maxWeight) {
   return chars.slice(0, cutIndex).join("") + "…";
 }
 
-export function formatTweet(item, genreLabel, comment) {
-  const price = Number(item.itemPrice).toLocaleString("ja-JP");
-  const url = item.affiliateUrl || item.itemUrl;
-  const genrePrefix = genreLabel ? `${genreLabel}の` : "";
-  const genreHashtag = genreLabel ? ` #${genreLabel.replace(/\s/g, "")}` : "";
+// AIコメント(おすすめ理由)が無い場合の最低限のフォールバック文言。
+// 商品名は使わない方針のため、ジャンル名ベースの簡潔な一言にする。
+function fallbackBody(genreLabel) {
+  return genreLabel
+    ? `楽天の${genreLabel}ランキングで人気の一品を見つけたよ。気になる人はチェックしてみて。`
+    : "楽天で人気の商品を見つけたよ。気になる人はチェックしてみて。";
+}
 
-  const header = `🏆 ${genrePrefix}楽天人気ランキング\n\n`;
-  const priceLine = `\n\n💰 ${price}円\n`;
+export function formatTweet(item, genreLabel, comment) {
+  const url = item.affiliateUrl || item.itemUrl;
+  const genreHashtag = genreLabel ? ` #${genreLabel.replace(/\s/g, "")}` : "";
   const tagLine = `\n\n#PR #楽天 #楽天ランキング${genreHashtag}`;
 
-  const reserved =
-    weightedLength(header) + weightedLength(priceLine) + URL_WEIGHT + weightedLength(tagLine);
+  const body = comment || fallbackBody(genreLabel);
+
+  const reserved = URL_WEIGHT + weightedLength(tagLine) + weightedLength("\n\n");
   const bodyBudget = Math.max(TWEET_MAX - reserved, 10);
+  const truncatedBody = truncateToWeight(body, bodyBudget);
 
-  // AIコメントがある場合は、SEOタイトル(楽天の長い商品名)より
-  // コメントを優先して表示する(両方入れると文字数を圧迫して共倒れになるため)
-  const body = comment
-    ? truncateToWeight(comment, bodyBudget)
-    : truncateToWeight(item.itemName, bodyBudget);
-
-  return `${header}${body}${priceLine}${url}${tagLine}`;
+  return `${truncatedBody}\n\n${url}${tagLine}`;
 }

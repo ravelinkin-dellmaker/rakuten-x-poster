@@ -332,9 +332,10 @@
   }
 
   // ROOM用コピー文言。ROOMはXと違い280字制限もハッシュタグ文化も無いので、
-  // 一言コメント(無ければ商品名)+ステマ規制対応の#PR+商品URLのシンプルな形にする。
+  // おすすめ理由(AIコメント、無ければ簡潔なフォールバック文)+ステマ規制対応の#PR+商品URLのシンプルな形にする。
+  // 商品名(長いSEOタイトル)はそのままだと読みにくいのであえて使わない。
   function buildRoomText(item) {
-    const body = item.comment || item.name;
+    const body = item.comment || "楽天で見つけた人気商品だよ。気になる人はチェックしてみて。";
     const url = item.itemUrl || item.url;
     return `${body} #PR\n${url}`;
   }
